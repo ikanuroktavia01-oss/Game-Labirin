@@ -1,0 +1,1158 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Taman Labirin Matematika 3D</title>
+    
+    <!-- Tailwind CSS for UI -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- Google Fonts for kid-friendly typography -->
+    <link href="https://fonts.googleapis.com/css2?family=Fredoka+One&family=Nunito:wght@400;700;900&display=swap" rel="stylesheet">
+    
+    <!-- Three.js for 3D Engine -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+
+    <style>
+        body {
+            margin: 0;
+            overflow: hidden;
+            background-color: #87CEEB; /* Sky blue fallback */
+            font-family: 'Nunito', sans-serif;
+            touch-action: none; /* Prevent browser swipe gestures */
+            user-select: none;
+        }
+
+        h1, h2, h3, .fredoka {
+            font-family: 'Fredoka One', cursive;
+        }
+
+        #game-canvas {
+            display: block;
+            width: 100vw;
+            height: 100vh;
+            position: absolute;
+            top: 0;
+            left: 0;
+            z-index: 0;
+        }
+
+        #ui-layer {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 10;
+            pointer-events: none; /* Let clicks pass through unless on a button */
+        }
+
+        /* Enable pointer events only for interactive UI elements */
+        .interactive {
+            pointer-events: auto;
+        }
+
+        /* Joystick styles */
+        #joystick-zone {
+            position: absolute;
+            bottom: 30px;
+            left: 30px;
+            width: 120px;
+            height: 120px;
+            background: rgba(255, 255, 255, 0.3);
+            border-radius: 50%;
+            border: 4px solid rgba(255, 255, 255, 0.6);
+            display: none; /* Hidden on desktop */
+        }
+        
+        #joystick-knob {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            width: 50px;
+            height: 50px;
+            background: #fff;
+            border-radius: 50%;
+            transform: translate(-50%, -50%);
+            box-shadow: 0 4px 8px rgba(0,0,0,0.3);
+            pointer-events: none;
+        }
+
+        #jump-btn {
+            position: absolute;
+            bottom: 30px;
+            right: 30px;
+            width: 80px;
+            height: 80px;
+            background: #FFD700;
+            border-radius: 50%;
+            border: 4px solid #FFA500;
+            box-shadow: 0 8px 0 #CD853F, 0 15px 20px rgba(0,0,0,0.4);
+            display: none; /* Hidden on desktop */
+            color: #b86200;
+            font-size: 24px;
+            font-weight: bold;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+        }
+        
+        #jump-btn:active {
+            transform: translateY(8px);
+            box-shadow: 0 0px 0 #CD853F, 0 5px 10px rgba(0,0,0,0.4);
+        }
+
+        /* Screen overlays */
+        .screen-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.6);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            backdrop-filter: blur(5px);
+            transition: opacity 0.3s;
+        }
+
+        .btn-primary {
+            background: linear-gradient(to bottom, #4ADE80, #22C55E);
+            border-bottom: 6px solid #16a34a;
+            transition: all 0.1s;
+        }
+        .btn-primary:active {
+            transform: translateY(6px);
+            border-bottom: 0px solid #16a34a;
+        }
+
+        /* Confetti */
+        .confetti {
+            position: absolute;
+            width: 10px;
+            height: 10px;
+            background-color: #f00;
+            animation: fall 3s linear infinite;
+        }
+
+        @keyframes fall {
+            to { transform: translateY(100vh) rotate(720deg); }
+        }
+
+        /* Mobile Adjustments */
+        @media (max-width: 768px) {
+            #joystick-zone { display: block; }
+            #jump-btn { display: flex; }
+            .desktop-hint { display: none; }
+        }
+    </style>
+</head>
+<body>
+
+    <canvas id="game-canvas"></canvas>
+
+    <div id="ui-layer">
+        <!-- HUD (Heads Up Display) -->
+        <div id="hud" class="hidden w-full flex justify-between items-start p-4 interactive">
+            <div class="flex gap-2">
+                <button id="pause-btn" class="bg-white/80 p-3 rounded-xl shadow-lg text-green-700 font-bold hover:bg-white border-b-4 border-green-300">
+                    <svg class="w-6 h-6" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zM7 8a1 1 0 012 0v4a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v4a1 1 0 102 0V8a1 1 0 00-1-1z" clip-rule="evenodd"></path></svg>
+                </button>
+                <div class="bg-white/80 px-4 py-2 rounded-xl shadow-lg border-b-4 border-green-300">
+                    <p class="text-sm font-bold text-gray-500 uppercase">Level <span id="hud-level">1</span></p>
+                    <p class="text-xl font-bold text-green-600 fredoka">Skor: <span id="hud-score">0</span></p>
+                </div>
+            </div>
+            
+            <div class="flex gap-2">
+                <div class="bg-white/80 px-4 py-2 rounded-xl shadow-lg border-b-4 border-blue-300 text-center">
+                    <p class="text-sm font-bold text-gray-500 uppercase">Waktu</p>
+                    <p id="hud-time" class="text-2xl font-bold text-blue-600 fredoka">05:00</p>
+                </div>
+                <button id="fullscreen-btn" class="bg-white/80 p-3 rounded-xl shadow-lg text-blue-700 font-bold hover:bg-white border-b-4 border-blue-300 hidden md:block">
+                    ⛶
+                </button>
+            </div>
+        </div>
+
+        <!-- Main Menu -->
+        <div id="main-menu" class="screen-overlay interactive">
+            <div class="bg-white p-8 rounded-3xl shadow-2xl max-w-md w-[90%] text-center border-8 border-green-400">
+                <h1 class="text-4xl text-green-600 mb-2 drop-shadow-sm">Taman Labirin</h1>
+                <h2 class="text-2xl text-blue-500 mb-6 drop-shadow-sm">Matematika Seru!</h2>
+                
+                <p class="text-gray-600 mb-6 font-bold">Pilih Level Pertambahan:</p>
+                
+                <div class="grid grid-cols-5 gap-2 mb-6" id="level-grid">
+                    <!-- Levels injected via JS -->
+                </div>
+
+                <p class="text-sm text-gray-500 mb-4 desktop-hint">Gunakan <b>W,A,S,D / Panah</b> untuk bergerak, <b>Spasi</b> untuk lompat.</p>
+                <p class="text-sm text-gray-500 mb-4 md:hidden">Gunakan <b>Joystick</b> di layar untuk bergerak.</p>
+
+                <button id="start-btn" class="btn-primary interactive w-full py-4 rounded-2xl text-white text-2xl font-bold shadow-lg fredoka">
+                    MULAI MAIN
+                </button>
+            </div>
+        </div>
+
+        <!-- Pause Menu -->
+        <div id="pause-menu" class="screen-overlay hidden interactive">
+            <div class="bg-white p-8 rounded-3xl shadow-2xl max-w-sm w-[90%] text-center border-8 border-yellow-400">
+                <h1 class="text-4xl text-yellow-500 mb-6">Jeda</h1>
+                <button id="resume-btn" class="btn-primary w-full py-3 rounded-xl text-white text-xl font-bold mb-4 shadow-md fredoka">
+                    Lanjutkan
+                </button>
+                <button id="quit-btn" class="bg-red-500 hover:bg-red-400 border-b-6 border-red-700 w-full py-3 rounded-xl text-white text-xl font-bold shadow-md fredoka transition-all active:translate-y-1 active:border-b-0">
+                    Keluar ke Menu
+                </button>
+            </div>
+        </div>
+
+        <!-- Game Over Menu -->
+        <div id="game-over" class="screen-overlay hidden interactive">
+            <div class="bg-white p-8 rounded-3xl shadow-2xl max-w-sm w-[90%] text-center border-8 border-red-400">
+                <h1 class="text-4xl text-red-500 mb-2">Waktu Habis!</h1>
+                <p class="text-gray-600 mb-6 text-lg font-bold">Yah, kamu belum menemukan jalan keluar.</p>
+                <button id="restart-btn" class="btn-primary w-full py-3 rounded-xl text-white text-xl font-bold shadow-md fredoka">
+                    Coba Lagi
+                </button>
+            </div>
+        </div>
+
+        <!-- Victory Menu -->
+        <div id="victory-screen" class="screen-overlay hidden interactive">
+            <div id="confetti-container" class="absolute inset-0 overflow-hidden pointer-events-none"></div>
+            <div class="bg-white p-8 rounded-3xl shadow-2xl max-w-sm w-[90%] text-center border-8 border-blue-400 z-10">
+                <h1 class="text-4xl text-blue-500 mb-2">Horeee!</h1>
+                <p class="text-gray-600 mb-2 text-lg font-bold">Kamu berhasil keluar dari labirin!</p>
+                <p class="text-green-600 text-xl font-bold mb-6 fredoka">Skor Akhir: <span id="final-score">0</span></p>
+                <button id="next-level-btn" class="btn-primary w-full py-3 rounded-xl text-white text-xl font-bold shadow-md fredoka">
+                    Main Lagi
+                </button>
+            </div>
+        </div>
+
+        <!-- Mobile Controls -->
+        <div id="joystick-zone" class="interactive">
+            <div id="joystick-knob"></div>
+        </div>
+        <div id="jump-btn" class="interactive">UP</div>
+    </div>
+
+    <script>
+        // --- Game Constants & State ---
+        const STATE = {
+            MENU: 0,
+            PLAYING: 1,
+            PAUSED: 2,
+            GAMEOVER: 3,
+            VICTORY: 4,
+            TRAP_ANIMATION: 5
+        };
+
+        let currentState = STATE.MENU;
+        let currentLevel = 1;
+        let score = 0;
+        let timeLeft = 300; // 5 minutes
+        let timerInterval = null;
+        let roomsCompleted = 0;
+        const TOTAL_ROOMS_PER_LEVEL = 5;
+        const ROOM_SPACING = 30;
+
+        // --- Audio Synthesizer (No external files) ---
+        const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        
+        function playTone(freq, type, duration, vol=0.1) {
+            if(audioCtx.state === 'suspended') audioCtx.resume();
+            const osc = audioCtx.createOscillator();
+            const gainNode = audioCtx.createGain();
+            osc.type = type;
+            osc.frequency.setValueAtTime(freq, audioCtx.currentTime);
+            
+            gainNode.gain.setValueAtTime(vol, audioCtx.currentTime);
+            gainNode.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + duration);
+            
+            osc.connect(gainNode);
+            gainNode.connect(audioCtx.destination);
+            osc.start();
+            osc.stop(audioCtx.currentTime + duration);
+        }
+
+        const SFX = {
+            jump: () => {
+                playTone(300, 'sine', 0.1);
+                setTimeout(() => playTone(400, 'sine', 0.15), 50);
+            },
+            correct: () => {
+                playTone(440, 'triangle', 0.1, 0.2);
+                setTimeout(() => playTone(554, 'triangle', 0.1, 0.2), 100);
+                setTimeout(() => playTone(659, 'triangle', 0.2, 0.2), 200);
+            },
+            wrong: () => {
+                playTone(300, 'sawtooth', 0.2, 0.2);
+                setTimeout(() => playTone(250, 'sawtooth', 0.3, 0.2), 150);
+            },
+            step: () => {
+                if(Math.random() > 0.5) playTone(150, 'square', 0.05, 0.02);
+            },
+            bear: () => {
+                playTone(100, 'sawtooth', 0.5, 0.3);
+                setTimeout(() => playTone(80, 'sawtooth', 0.5, 0.3), 100);
+            },
+            win: () => {
+                [523, 659, 783, 1046].forEach((f, i) => setTimeout(() => playTone(f, 'square', 0.2, 0.2), i*150));
+            }
+        };
+
+        // BGM Sequencer
+        let bgmOsc = null;
+        let bgmGain = null;
+        let bgmInterval = null;
+        const melody = [261, 329, 392, 329, 349, 440, 523, 440];
+        let noteIndex = 0;
+
+        function startBGM() {
+            if(audioCtx.state === 'suspended') audioCtx.resume();
+            if(bgmInterval) return;
+            bgmGain = audioCtx.createGain();
+            bgmGain.gain.value = 0.03;
+            bgmGain.connect(audioCtx.destination);
+            
+            bgmInterval = setInterval(() => {
+                if(currentState !== STATE.PLAYING) return;
+                const osc = audioCtx.createOscillator();
+                osc.type = 'triangle';
+                osc.frequency.setValueAtTime(melody[noteIndex], audioCtx.currentTime);
+                osc.connect(bgmGain);
+                osc.start();
+                osc.stop(audioCtx.currentTime + 0.2);
+                noteIndex = (noteIndex + 1) % melody.length;
+            }, 300);
+        }
+
+        function stopBGM() {
+            if(bgmInterval) {
+                clearInterval(bgmInterval);
+                bgmInterval = null;
+            }
+        }
+
+        // --- Three.js Setup ---
+        const canvas = document.getElementById('game-canvas');
+        const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.shadowMap.enabled = true;
+        renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+
+        const scene = new THREE.Scene();
+        scene.background = new THREE.Color(0x87CEEB); // Sky blue
+        scene.fog = new THREE.Fog(0x87CEEB, 20, 60); // Morning fog
+
+        // Camera
+        const camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 1000);
+        const cameraOffset = new THREE.Vector3(0, 6, 10);
+
+        // Lighting
+        const ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
+        scene.add(ambientLight);
+
+        const dirLight = new THREE.DirectionalLight(0xffdf80, 0.8); // Sunny
+        dirLight.position.set(20, 30, 10);
+        dirLight.castShadow = true;
+        dirLight.shadow.mapSize.width = 1024;
+        dirLight.shadow.mapSize.height = 1024;
+        dirLight.shadow.camera.near = 0.5;
+        dirLight.shadow.camera.far = 100;
+        dirLight.shadow.camera.left = -30;
+        dirLight.shadow.camera.right = 30;
+        dirLight.shadow.camera.top = 30;
+        dirLight.shadow.camera.bottom = -30;
+        scene.add(dirLight);
+
+        // --- Procedural Textures ---
+        function createNoiseTexture(colorBase, colorVar) {
+            const size = 256;
+            const ctxCanvas = document.createElement('canvas');
+            ctxCanvas.width = size;
+            ctxCanvas.height = size;
+            const ctx = ctxCanvas.getContext('2d');
+            
+            ctx.fillStyle = colorBase;
+            ctx.fillRect(0, 0, size, size);
+            
+            for(let i=0; i<3000; i++) {
+                ctx.fillStyle = Math.random() > 0.5 ? colorBase : colorVar;
+                ctx.fillRect(Math.random()*size, Math.random()*size, 3, 3);
+            }
+            const texture = new THREE.CanvasTexture(ctxCanvas);
+            texture.wrapS = THREE.RepeatWrapping;
+            texture.wrapT = THREE.RepeatWrapping;
+            texture.repeat.set(4, 4);
+            return texture;
+        }
+
+        const grassTex = createNoiseTexture('#4ADE80', '#22C55E'); // Light green ground
+        const hedgeTex = createNoiseTexture('#166534', '#14532d'); // Dark green hedge
+        const pathTex = createNoiseTexture('#D6D3D1', '#A8A29E'); // Stone path
+
+        const matGrass = new THREE.MeshLambertMaterial({ map: grassTex });
+        const matHedge = new THREE.MeshLambertMaterial({ map: hedgeTex });
+        const matPath = new THREE.MeshLambertMaterial({ map: pathTex });
+
+        // --- Objects and Character ---
+        let player, playerBody, playerHead, playerLegL, playerLegR, playerArmL, playerArmR;
+        const collidableObjects = [];
+        let doors = []; // Array to track interactive doors
+        let roomData = []; // Array to track room state
+        let bearModel = null;
+        let butterflies = [];
+
+        function createPlayer() {
+            player = new THREE.Group();
+            
+            // Body (Blue Shirt)
+            const bodyGeom = new THREE.BoxGeometry(0.8, 1.2, 0.6);
+            const matBody = new THREE.MeshLambertMaterial({ color: 0x3B82F6 });
+            playerBody = new THREE.Mesh(bodyGeom, matBody);
+            playerBody.position.y = 1.2;
+            playerBody.castShadow = true;
+            player.add(playerBody);
+
+            // Head
+            const headGeom = new THREE.BoxGeometry(0.8, 0.8, 0.8);
+            const matHead = new THREE.MeshLambertMaterial({ color: 0xFFDCB6 });
+            playerHead = new THREE.Mesh(headGeom, matHead);
+            playerHead.position.y = 2.2;
+            playerHead.castShadow = true;
+            player.add(playerHead);
+
+            // Limbs (Dark pants, blue sleeves)
+            const limbGeom = new THREE.BoxGeometry(0.3, 0.8, 0.3);
+            const matLeg = new THREE.MeshLambertMaterial({ color: 0x1E3A8A });
+            
+            playerLegL = new THREE.Mesh(limbGeom, matLeg);
+            playerLegL.position.set(-0.25, 0.4, 0);
+            playerLegL.castShadow = true;
+            player.add(playerLegL);
+
+            playerLegR = new THREE.Mesh(limbGeom, matLeg);
+            playerLegR.position.set(0.25, 0.4, 0);
+            playerLegR.castShadow = true;
+            player.add(playerLegR);
+
+            playerArmL = new THREE.Mesh(limbGeom, matBody);
+            playerArmL.position.set(-0.55, 1.4, 0);
+            playerArmL.castShadow = true;
+            player.add(playerArmL);
+
+            playerArmR = new THREE.Mesh(limbGeom, matBody);
+            playerArmR.position.set(0.55, 1.4, 0);
+            playerArmR.castShadow = true;
+            player.add(playerArmR);
+
+            scene.add(player);
+        }
+
+        function createBear() {
+            bearModel = new THREE.Group();
+            const matBrown = new THREE.MeshLambertMaterial({ color: 0x8B4513 });
+            const body = new THREE.Mesh(new THREE.BoxGeometry(2, 2, 3), matBrown);
+            body.position.y = 1;
+            const head = new THREE.Mesh(new THREE.BoxGeometry(1.2, 1.2, 1.2), matBrown);
+            head.position.set(0, 2, 1.5);
+            bearModel.add(body);
+            bearModel.add(head);
+            bearModel.visible = false;
+            scene.add(bearModel);
+        }
+
+        function createButterfly() {
+            const colors = [0xFFD700, 0xFF69B4, 0x00FFFF, 0xFFFFFF];
+            const mat = new THREE.MeshBasicMaterial({ color: colors[Math.floor(Math.random()*colors.length)], side: THREE.DoubleSide });
+            const geom = new THREE.PlaneGeometry(0.3, 0.3);
+            const bf = new THREE.Mesh(geom, mat);
+            bf.position.set((Math.random()-0.5)*20, 2 + Math.random()*2, (Math.random()-0.5)*20);
+            bf.userData = { offset: Math.random()*100, speed: 0.05 + Math.random()*0.05 };
+            scene.add(bf);
+            butterflies.push(bf);
+            return bf;
+        }
+
+        function createTextCanvas(text, color="#ffffff", bgColor="#EAB308") {
+            const canvas = document.createElement('canvas');
+            canvas.width = 256;
+            canvas.height = 128;
+            const ctx = canvas.getContext('2d');
+            ctx.fillStyle = bgColor;
+            ctx.fillRect(0, 0, 256, 128);
+            
+            // Border
+            ctx.strokeStyle = "#CA8A04";
+            ctx.lineWidth = 10;
+            ctx.strokeRect(5, 5, 246, 118);
+
+            ctx.fillStyle = color;
+            ctx.font = 'bold 60px Fredoka One, Arial';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillText(text, 128, 64);
+            
+            const tex = new THREE.CanvasTexture(canvas);
+            return tex;
+        }
+
+        // --- Level Generation ---
+        let levelEnvironment = new THREE.Group();
+        scene.add(levelEnvironment);
+
+        function generateLevel(levelNum) {
+            // Clear previous
+            while(levelEnvironment.children.length > 0){ 
+                levelEnvironment.remove(levelEnvironment.children[0]); 
+            }
+            collidableObjects.length = 0;
+            doors.length = 0;
+            roomData.length = 0;
+            
+            // Ground Plane spanning the whole level
+            const totalLength = TOTAL_ROOMS_PER_LEVEL * ROOM_SPACING + 20;
+            const groundGeom = new THREE.PlaneGeometry(30, totalLength);
+            matGrass.map.repeat.set(10, totalLength/5);
+            const ground = new THREE.Mesh(groundGeom, matGrass);
+            ground.rotation.x = -Math.PI / 2;
+            ground.position.z = -(totalLength / 2) + 15; // Start at z=0, go negative
+            ground.receiveShadow = true;
+            levelEnvironment.add(ground);
+
+            // Path
+            const pathG = new THREE.PlaneGeometry(6, totalLength);
+            matPath.map.repeat.set(2, totalLength/5);
+            const pathMesh = new THREE.Mesh(pathG, matPath);
+            pathMesh.rotation.x = -Math.PI / 2;
+            pathMesh.position.y = 0.01;
+            pathMesh.position.z = -(totalLength / 2) + 15;
+            pathMesh.receiveShadow = true;
+            levelEnvironment.add(pathMesh);
+
+            // Generate Rooms
+            for(let i=0; i<TOTAL_ROOMS_PER_LEVEL; i++) {
+                const zPos = -(i * ROOM_SPACING);
+                createRoom(zPos, i, levelNum);
+            }
+
+            // Create End Gate
+            const endZ = -(TOTAL_ROOMS_PER_LEVEL * ROOM_SPACING) + 10;
+            const gateGeom = new THREE.BoxGeometry(10, 8, 1);
+            const matGate = new THREE.MeshLambertMaterial({ color: 0xFFD700 });
+            const gate = new THREE.Mesh(gateGeom, matGate);
+            gate.position.set(0, 4, endZ);
+            levelEnvironment.add(gate);
+            
+            // Add some butterflies
+            for(let i=0; i<15; i++) {
+                const bf = createButterfly();
+                bf.position.z -= Math.random() * totalLength;
+                levelEnvironment.add(bf);
+            }
+        }
+
+        function createRoom(zCenter, roomIndex, levelNum) {
+            const wallH = 6;
+            const wallW = 1;
+            
+            // Left Wall
+            const wLeft = new THREE.Mesh(new THREE.BoxGeometry(wallW, wallH, ROOM_SPACING), matHedge);
+            wLeft.position.set(-10, wallH/2, zCenter - ROOM_SPACING/2);
+            wLeft.castShadow = true;
+            levelEnvironment.add(wLeft);
+            collidableObjects.push(new THREE.Box3().setFromObject(wLeft));
+
+            // Right Wall
+            const wRight = new THREE.Mesh(new THREE.BoxGeometry(wallW, wallH, ROOM_SPACING), matHedge);
+            wRight.position.set(10, wallH/2, zCenter - ROOM_SPACING/2);
+            wRight.castShadow = true;
+            levelEnvironment.add(wRight);
+            collidableObjects.push(new THREE.Box3().setFromObject(wRight));
+
+            // Generate Math Question based on level (1-10)
+            const maxVal = levelNum * 2 + 3; // e.g., L1: max 5, L10: max 23
+            let a = Math.floor(Math.random() * maxVal) + 1;
+            let b = Math.floor(Math.random() * maxVal) + 1;
+            let correctAns = a + b;
+            
+            // Question Signboard
+            const signGeom = new THREE.PlaneGeometry(5, 2.5);
+            const signTex = createTextCanvas(`${a} + ${b} = ?`, '#ffffff', '#3B82F6');
+            const signMat = new THREE.MeshBasicMaterial({ map: signTex, transparent: true });
+            const sign = new THREE.Mesh(signGeom, signMat);
+            sign.position.set(0, 3, zCenter - 5);
+            // Post
+            const post = new THREE.Mesh(new THREE.CylinderGeometry(0.2, 0.2, 3), new THREE.MeshLambertMaterial({color:0x8B4513}));
+            post.position.set(0, 1.5, zCenter - 5.1);
+            levelEnvironment.add(sign);
+            levelEnvironment.add(post);
+
+            // Generate Answers
+            let answers = [correctAns];
+            while(answers.length < 3) {
+                let wrong = correctAns + (Math.floor(Math.random() * 7) - 3);
+                if(wrong !== correctAns && wrong > 0 && !answers.includes(wrong)) {
+                    answers.push(wrong);
+                }
+            }
+            // Shuffle
+            answers.sort(() => Math.random() - 0.5);
+
+            // Front Divider Wall (with 3 doors)
+            const doorZ = zCenter - 15;
+            
+            // Dividers between doors
+            const div1 = new THREE.Mesh(new THREE.BoxGeometry(2, wallH, wallW), matHedge);
+            div1.position.set(-4, wallH/2, doorZ);
+            levelEnvironment.add(div1);
+            collidableObjects.push(new THREE.Box3().setFromObject(div1));
+
+            const div2 = new THREE.Mesh(new THREE.BoxGeometry(2, wallH, wallW), matHedge);
+            div2.position.set(4, wallH/2, doorZ);
+            levelEnvironment.add(div2);
+            collidableObjects.push(new THREE.Box3().setFromObject(div2));
+
+            // Room floor patch (for pitfall trap)
+            const trapFloorG = new THREE.PlaneGeometry(20, 10);
+            const trapFloor = new THREE.Mesh(trapFloorG, matPath);
+            trapFloor.rotation.x = -Math.PI / 2;
+            trapFloor.position.set(0, 0.02, doorZ - 5);
+            levelEnvironment.add(trapFloor);
+
+            roomData[roomIndex] = {
+                zCenter: zCenter,
+                trapFloor: trapFloor,
+                solved: false
+            };
+
+            // Doors
+            const doorXPositions = [-7, 0, 7]; // Left, Center, Right
+            let pitDoorIndex = Math.floor(Math.random() * 2); // 0 or 1 for trap allocation
+            
+            for(let j=0; j<3; j++) {
+                const ans = answers[j];
+                const isCorrect = (ans === correctAns);
+                let trapType = "none";
+                if(!isCorrect) {
+                    trapType = (pitDoorIndex === 0) ? "pit" : "bear";
+                    pitDoorIndex = 1 - pitDoorIndex; // switch for the other wrong door
+                }
+
+                // Door Mesh
+                const doorG = new THREE.BoxGeometry(4, 5, 0.5);
+                const doorMat = new THREE.MeshLambertMaterial({ color: 0x8B4513 });
+                const door = new THREE.Mesh(doorG, doorMat);
+                door.position.set(doorXPositions[j], 2.5, doorZ);
+                levelEnvironment.add(door);
+                
+                // Door Label
+                const labelG = new THREE.PlaneGeometry(2, 1);
+                const labelTex = createTextCanvas(ans.toString(), '#000000', '#ffffff');
+                const labelM = new THREE.MeshBasicMaterial({ map: labelTex });
+                const label = new THREE.Mesh(labelG, labelM);
+                label.position.set(0, 0, 0.26);
+                door.add(label);
+
+                // Collision box
+                const dBox = new THREE.Box3().setFromObject(door);
+                
+                doors.push({
+                    mesh: door,
+                    box: dBox,
+                    isCorrect: isCorrect,
+                    trapType: trapType,
+                    roomIndex: roomIndex,
+                    isOpen: false
+                });
+            }
+        }
+
+        // --- Controls & Input ---
+        const input = { x: 0, y: 0, jump: false };
+        const keys = { w: false, a: false, s: false, d: false, up:false, left:false, down:false, right:false };
+
+        window.addEventListener('keydown', (e) => {
+            if(e.key === 'w' || e.key === 'ArrowUp') keys.w = true;
+            if(e.key === 'a' || e.key === 'ArrowLeft') keys.a = true;
+            if(e.key === 's' || e.key === 'ArrowDown') keys.s = true;
+            if(e.key === 'd' || e.key === 'ArrowRight') keys.d = true;
+            if(e.key === ' ' && currentState === STATE.PLAYING) {
+                input.jump = true;
+            }
+        });
+
+        window.addEventListener('keyup', (e) => {
+            if(e.key === 'w' || e.key === 'ArrowUp') keys.w = false;
+            if(e.key === 'a' || e.key === 'ArrowLeft') keys.a = false;
+            if(e.key === 's' || e.key === 'ArrowDown') keys.s = false;
+            if(e.key === 'd' || e.key === 'ArrowRight') keys.d = false;
+        });
+
+        // Virtual Joystick Logic
+        const joystickZone = document.getElementById('joystick-zone');
+        const joystickKnob = document.getElementById('joystick-knob');
+        let isDragging = false;
+        let joyCenter = { x: 0, y: 0 };
+
+        joystickZone.addEventListener('touchstart', (e) => {
+            e.preventDefault();
+            isDragging = true;
+            const rect = joystickZone.getBoundingClientRect();
+            joyCenter = { x: rect.left + rect.width/2, y: rect.top + rect.height/2 };
+            updateJoystick(e.touches[0].clientX, e.touches[0].clientY);
+        });
+
+        joystickZone.addEventListener('touchmove', (e) => {
+            e.preventDefault();
+            if(!isDragging) return;
+            updateJoystick(e.touches[0].clientX, e.touches[0].clientY);
+        });
+
+        joystickZone.addEventListener('touchend', (e) => {
+            e.preventDefault();
+            isDragging = false;
+            joystickKnob.style.transform = `translate(-50%, -50%)`;
+            input.x = 0;
+            input.y = 0;
+        });
+
+        function updateJoystick(clientX, clientY) {
+            let dx = clientX - joyCenter.x;
+            let dy = clientY - joyCenter.y;
+            const maxDist = 40;
+            const dist = Math.sqrt(dx*dx + dy*dy);
+            
+            if(dist > maxDist) {
+                dx = (dx/dist) * maxDist;
+                dy = (dy/dist) * maxDist;
+            }
+            
+            joystickKnob.style.transform = `translate(calc(-50% + ${dx}px), calc(-50% + ${dy}px))`;
+            
+            // Normalize for game input
+            input.x = dx / maxDist;
+            input.y = dy / maxDist;
+        }
+
+        // Jump Button Mobile
+        const jumpBtn = document.getElementById('jump-btn');
+        jumpBtn.addEventListener('touchstart', (e) => {
+            e.preventDefault();
+            if(currentState === STATE.PLAYING) input.jump = true;
+        });
+
+        // --- Game Logic ---
+        let playerVel = new THREE.Vector3();
+        let isGrounded = true;
+        const speed = 8;
+        const gravity = -20;
+        const jumpForce = 10;
+        let walkCycle = 0;
+
+        function updatePhysics(dt) {
+            if(currentState !== STATE.PLAYING && currentState !== STATE.TRAP_ANIMATION) return;
+
+            // Apply Keyboard input if joystick not active
+            if(!isDragging) {
+                input.x = 0;
+                input.y = 0;
+                if(keys.a) input.x = -1;
+                if(keys.d) input.x = 1;
+                if(keys.w) input.y = -1;
+                if(keys.s) input.y = 1;
+                
+                // Normalize keyboard diagonal
+                if(input.x !== 0 && input.y !== 0) {
+                    const length = Math.sqrt(input.x*input.x + input.y*input.y);
+                    input.x /= length;
+                    input.y /= length;
+                }
+            }
+
+            // Only allow movement if playing (not in trap animation)
+            if(currentState === STATE.PLAYING) {
+                playerVel.x = input.x * speed;
+                playerVel.z = input.y * speed;
+
+                if(input.jump && isGrounded) {
+                    playerVel.y = jumpForce;
+                    isGrounded = false;
+                    input.jump = false;
+                    SFX.jump();
+                }
+            } else if (currentState === STATE.TRAP_ANIMATION) {
+                playerVel.x = 0;
+                playerVel.z = 0;
+            }
+
+            playerVel.y += gravity * dt;
+
+            // Proposed new position
+            const nextPos = player.position.clone();
+            nextPos.x += playerVel.x * dt;
+            nextPos.y += playerVel.y * dt;
+            nextPos.z += playerVel.z * dt;
+
+            // Collision Detection with Walls & Doors
+            let canMoveX = true;
+            let canMoveZ = true;
+            
+            // Player bounding box (shrink slightly for smoother sliding)
+            const pBox = new THREE.Box3().setFromCenterAndSize(
+                new THREE.Vector3(nextPos.x, player.position.y + 1, player.position.z),
+                new THREE.Vector3(1, 2, 1)
+            );
+
+            // Check walls
+            for(let box of collidableObjects) {
+                if(pBox.intersectsBox(box)) {
+                    // Simple resolution: stop movement
+                    canMoveX = false;
+                    canMoveZ = false;
+                }
+            }
+
+            // Check interactive doors
+            for(let door of doors) {
+                if(!door.isOpen) {
+                    // Update box based on current door mesh
+                    door.box.setFromObject(door.mesh);
+                    if(pBox.intersectsBox(door.box)) {
+                        canMoveX = false;
+                        canMoveZ = false;
+                        handleDoorCollision(door);
+                    }
+                }
+            }
+
+            if(canMoveX) player.position.x = nextPos.x;
+            if(canMoveZ) player.position.z = nextPos.z;
+
+            // Floor collision
+            if(player.position.y < 0 && currentState !== STATE.TRAP_ANIMATION) {
+                player.position.y = 0;
+                playerVel.y = 0;
+                isGrounded = true;
+            }
+
+            // Animation
+            if(currentState === STATE.PLAYING && (Math.abs(playerVel.x) > 0.1 || Math.abs(playerVel.z) > 0.1)) {
+                walkCycle += dt * 15;
+                playerLegL.rotation.x = Math.sin(walkCycle) * 0.5;
+                playerLegR.rotation.x = Math.sin(walkCycle + Math.PI) * 0.5;
+                playerArmL.rotation.x = Math.sin(walkCycle + Math.PI) * 0.5;
+                playerArmR.rotation.x = Math.sin(walkCycle) * 0.5;
+                
+                // Bobbing
+                playerBody.position.y = 1.2 + Math.abs(Math.sin(walkCycle)) * 0.1;
+                playerHead.position.y = 2.2 + Math.abs(Math.sin(walkCycle)) * 0.1;
+
+                if(Math.floor(walkCycle) % 6 === 0 && isGrounded) SFX.step();
+            } else {
+                playerLegL.rotation.x = 0;
+                playerLegR.rotation.x = 0;
+                playerArmL.rotation.x = 0;
+                playerArmR.rotation.x = 0;
+            }
+
+            // Camera Follow
+            camera.position.lerp(
+                new THREE.Vector3(player.position.x, player.position.y + cameraOffset.y, player.position.z + cameraOffset.z),
+                0.1
+            );
+            camera.lookAt(player.position.x, player.position.y + 1, player.position.z);
+
+            // Win condition (reaching end)
+            if(player.position.z < -(TOTAL_ROOMS_PER_LEVEL * ROOM_SPACING) + 12 && currentState === STATE.PLAYING) {
+                triggerVictory();
+            }
+        }
+
+        // --- Interaction Logic ---
+        function handleDoorCollision(door) {
+            if(currentState !== STATE.PLAYING || door.isOpen) return;
+
+            if(door.isCorrect) {
+                // Correct Answer
+                door.isOpen = true;
+                SFX.correct();
+                score += 100;
+                document.getElementById('hud-score').innerText = score;
+                roomsCompleted++;
+                
+                // Animate door opening (slide down)
+                const startY = door.mesh.position.y;
+                let t = 0;
+                const openAnim = setInterval(() => {
+                    t += 0.05;
+                    door.mesh.position.y = startY - (t * 5);
+                    if(t >= 1) {
+                        door.mesh.visible = false;
+                        door.mesh.position.y = -10; // Move out of way
+                        door.box.makeEmpty(); // Remove collision
+                        clearInterval(openAnim);
+                    }
+                }, 16);
+
+            } else {
+                // Wrong Answer
+                SFX.wrong();
+                currentState = STATE.TRAP_ANIMATION;
+                score = Math.max(0, score - 20); // Penalty
+                document.getElementById('hud-score').innerText = score;
+
+                if(door.trapType === "pit") {
+                    triggerPitTrap(door);
+                } else {
+                    triggerBearTrap(door);
+                }
+            }
+        }
+
+        function respawnPlayer(roomIndex) {
+            const zSpawn = roomData[roomIndex].zCenter + 10;
+            player.position.set(0, 0, zSpawn);
+            playerVel.set(0,0,0);
+            currentState = STATE.PLAYING;
+            
+            // Re-enable trap floor if it was hidden
+            if(roomData[roomIndex].trapFloor) {
+                roomData[roomIndex].trapFloor.visible = true;
+            }
+        }
+
+        function triggerPitTrap(door) {
+            const rData = roomData[door.roomIndex];
+            if(rData.trapFloor) rData.trapFloor.visible = false; // Floor disappears
+
+            // Animate falling
+            let fallT = 0;
+            const fallAnim = setInterval(() => {
+                fallT += 0.1;
+                playerVel.y -= 1; // Extra gravity
+                if(player.position.y < -10) {
+                    clearInterval(fallAnim);
+                    respawnPlayer(door.roomIndex);
+                }
+            }, 16);
+        }
+
+        function triggerBearTrap(door) {
+            SFX.bear();
+            bearModel.position.set(15, 0, player.position.z - 2); // Start offscreen right
+            bearModel.visible = true;
+
+            // Animate bear charging
+            let t = 0;
+            const chargeAnim = setInterval(() => {
+                t += 0.05;
+                bearModel.position.x = 15 * (1 - t);
+                
+                // Character surprise animation
+                playerArmL.rotation.z = Math.PI/2;
+                playerArmR.rotation.z = -Math.PI/2;
+                player.position.y += Math.sin(t * Math.PI*4) * 0.1; // Shake
+
+                if(t >= 1) {
+                    clearInterval(chargeAnim);
+                    bearModel.visible = false;
+                    playerArmL.rotation.z = 0;
+                    playerArmR.rotation.z = 0;
+                    respawnPlayer(door.roomIndex);
+                }
+            }, 16);
+        }
+
+        // --- Game Lifecycle ---
+        function startGame(level) {
+            currentLevel = level;
+            document.getElementById('hud-level').innerText = level;
+            score = 0;
+            document.getElementById('hud-score').innerText = score;
+            timeLeft = 300;
+            roomsCompleted = 0;
+            
+            generateLevel(level);
+            
+            createPlayer();
+            if(!bearModel) createBear();
+            
+            player.position.set(0, 0, 10); // Start position
+            camera.position.set(0, 8, 20);
+            
+            document.getElementById('main-menu').classList.add('hidden');
+            document.getElementById('pause-menu').classList.add('hidden');
+            document.getElementById('game-over').classList.add('hidden');
+            document.getElementById('victory-screen').classList.add('hidden');
+            document.getElementById('hud').classList.remove('hidden');
+            
+            currentState = STATE.PLAYING;
+            startTimer();
+            startBGM();
+        }
+
+        function startTimer() {
+            if(timerInterval) clearInterval(timerInterval);
+            updateTimerDisplay();
+            timerInterval = setInterval(() => {
+                if(currentState !== STATE.PLAYING) return;
+                timeLeft--;
+                updateTimerDisplay();
+                if(timeLeft <= 0) {
+                    triggerGameOver();
+                }
+            }, 1000);
+        }
+
+        function updateTimerDisplay() {
+            const m = Math.floor(timeLeft / 60).toString().padStart(2, '0');
+            const s = (timeLeft % 60).toString().padStart(2, '0');
+            document.getElementById('hud-time').innerText = `${m}:${s}`;
+        }
+
+        function triggerGameOver() {
+            currentState = STATE.GAMEOVER;
+            clearInterval(timerInterval);
+            stopBGM();
+            document.getElementById('game-over').classList.remove('hidden');
+        }
+
+        function triggerVictory() {
+            currentState = STATE.VICTORY;
+            clearInterval(timerInterval);
+            stopBGM();
+            SFX.win();
+            
+            // Time bonus
+            score += timeLeft * 2;
+            document.getElementById('final-score').innerText = score;
+            document.getElementById('victory-screen').classList.remove('hidden');
+            createConfetti();
+        }
+
+        function quitToMenu() {
+            currentState = STATE.MENU;
+            clearInterval(timerInterval);
+            stopBGM();
+            scene.remove(player);
+            document.getElementById('pause-menu').classList.add('hidden');
+            document.getElementById('game-over').classList.add('hidden');
+            document.getElementById('victory-screen').classList.add('hidden');
+            document.getElementById('hud').classList.add('hidden');
+            document.getElementById('main-menu').classList.remove('hidden');
+            
+            // Clean up confetti
+            document.getElementById('confetti-container').innerHTML = '';
+        }
+
+        // UI Event Listeners
+        document.getElementById('pause-btn').addEventListener('click', () => {
+            if(currentState === STATE.PLAYING) {
+                currentState = STATE.PAUSED;
+                document.getElementById('pause-menu').classList.remove('hidden');
+            }
+        });
+
+        document.getElementById('resume-btn').addEventListener('click', () => {
+            currentState = STATE.PLAYING;
+            document.getElementById('pause-menu').classList.add('hidden');
+        });
+
+        document.getElementById('quit-btn').addEventListener('click', quitToMenu);
+        document.getElementById('restart-btn').addEventListener('click', () => startGame(currentLevel));
+        document.getElementById('next-level-btn').addEventListener('click', () => {
+            document.getElementById('confetti-container').innerHTML = '';
+            startGame(Math.min(currentLevel + 1, 10));
+        });
+
+        // Fullscreen API
+        const fsBtn = document.getElementById('fullscreen-btn');
+        fsBtn.addEventListener('click', () => {
+            if (!document.fullscreenElement) {
+                document.documentElement.requestFullscreen().catch(err => {
+                    console.log(`Error attempting to enable fullscreen: ${err.message}`);
+                });
+            } else {
+                document.exitFullscreen();
+            }
+        });
+
+        // Generate Level Buttons
+        const levelGrid = document.getElementById('level-grid');
+        for(let i=1; i<=10; i++) {
+            const btn = document.createElement('button');
+            btn.className = "bg-blue-100 hover:bg-blue-300 text-blue-800 font-bold py-3 rounded-xl shadow-sm border-b-4 border-blue-400 transition-all active:translate-y-1 active:border-b-0 fredoka interactive";
+            btn.innerText = i;
+            btn.addEventListener('click', () => {
+                // Remove highlight from others
+                Array.from(levelGrid.children).forEach(c => c.classList.remove('ring-4', 'ring-green-500'));
+                btn.classList.add('ring-4', 'ring-green-500');
+                currentLevel = i;
+            });
+            if(i === 1) btn.classList.add('ring-4', 'ring-green-500'); // Default
+            levelGrid.appendChild(btn);
+        }
+
+        document.getElementById('start-btn').addEventListener('click', () => startGame(currentLevel));
+
+        // Confetti Effect
+        function createConfetti() {
+            const container = document.getElementById('confetti-container');
+            const colors = ['#f00', '#0f0', '#00f', '#ff0', '#f0f', '#0ff'];
+            for(let i=0; i<100; i++) {
+                const conf = document.createElement('div');
+                conf.className = 'confetti';
+                conf.style.left = Math.random() * 100 + 'vw';
+                conf.style.backgroundColor = colors[Math.floor(Math.random() * colors.length)];
+                conf.style.animationDuration = (Math.random() * 2 + 2) + 's';
+                conf.style.animationDelay = (Math.random() * 2) + 's';
+                container.appendChild(conf);
+            }
+        }
+
+        // --- Main Render Loop ---
+        const clock = new THREE.Clock();
+
+        function animate() {
+            requestAnimationFrame(animate);
+            const dt = Math.min(clock.getDelta(), 0.1); // Cap dt
+
+            if(currentState === STATE.PLAYING || currentState === STATE.TRAP_ANIMATION) {
+                updatePhysics(dt);
+                
+                // Animate butterflies
+                butterflies.forEach(bf => {
+                    bf.position.y += Math.sin(clock.elapsedTime * 5 + bf.userData.offset) * 0.02;
+                    bf.position.x += Math.cos(clock.elapsedTime * bf.userData.speed + bf.userData.offset) * 0.05;
+                    bf.rotation.y = Math.sin(clock.elapsedTime * 10 + bf.userData.offset) * 0.5;
+                });
+            }
+
+            renderer.render(scene, camera);
+        }
+
+        // Window resize
+        window.addEventListener('resize', () => {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        });
+
+        // Start App
+        window.onload = () => {
+            animate();
+        };
+
+    </script>
+</body>
+</html>
